@@ -1,0 +1,29 @@
+name: PORTABLE WINDOWS EXE
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-portable:
+    name: Build Portable WINDOWS EXE
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build Portable package
+        run: npm run build:win -- --publish never
+
+      - name: Collect Portable artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: portable-package-${{ github.run_id }}
+          path: release/*.exe
