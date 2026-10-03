@@ -29,12 +29,15 @@ async function initializeApp(): Promise<void> {
 
     logger.info(LogSource.APP, 'Main', 'Creating main window...');
     getWindowManager().createMainWindow({
-      width: 1200,
+      width: 600,
       height: 800,
-      minWidth: 800,
+      minWidth: 450,
       minHeight: 600,
+      maxWidth: 600,
+      maxHeight: 800,
       title: "Arsenal",
       resizable: true,
+      maximizable: false,
       frame: false,
       backgroundColor: '#141414',
     });

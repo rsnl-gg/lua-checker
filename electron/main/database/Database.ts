@@ -13,6 +13,7 @@ export class Database {
   private db: SqlJsDatabase | null = null;
   private dbPath: string;
   private initialized = false;
+  private discarded = false;
 
   private constructor() {
     const userDataPath = app.getPath('userData');
@@ -73,19 +74,28 @@ export class Database {
   }
 
   private getMigrations(): Array<{ name: string; sql: string }> {
-    // Add your migrations here following this pattern:
-    // {
-    //   name: '001_create_your_table',
-    //   sql: `
-    //     CREATE TABLE IF NOT EXISTS your_table (
-    //       id INTEGER PRIMARY KEY AUTOINCREMENT,
-    //       name TEXT NOT NULL,
-    //       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    //       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    //     )
-    //   `,
-    // },
-    return [];
+    return [
+      {
+        name: '001_initial_schema',
+        sql: `
+          CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE TABLE IF NOT EXISTS scan_paths (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            path TEXT NOT NULL UNIQUE,
+            source TEXT NOT NULL DEFAULT 'custom',
+            color TEXT,
+            label TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+          );
+        `,
+      },
+    ];
   }
 
   public getConnection(): SqlJsDatabase {
@@ -95,8 +105,18 @@ export class Database {
     return this.db;
   }
 
+  public discard(): void {
+    this.discarded = true;
+    if (!this.db) {
+      return;
+    }
+    this.db.close();
+    this.db = null;
+    this.initialized = false;
+  }
+
   public save(): void {
-    if (!this.db) return;
+    if (this.discarded || !this.db) return;
     
     const data = this.db.export();
     const buffer = Buffer.from(data);
@@ -104,6 +124,11 @@ export class Database {
   }
 
   public async close(): Promise<void> {
+    if (this.discarded) {
+      this.db = null;
+      this.initialized = false;
+      return;
+    }
     if (this.db) {
       this.save();
       this.db.close();
@@ -112,21 +137,6 @@ export class Database {
     }
   }
 
-  public exportDatabase(): Uint8Array | null {
-    if (!this.db) return null;
-    return this.db.export();
-  }
-
-  public async importDatabase(data: Uint8Array): Promise<void> {
-    const SQL = await initSqlJs();
-    
-    if (this.db) {
-      this.db.close();
-    }
-    
-    this.db = new SQL.Database(data) as SqlJsDatabase;
-    this.save();
-  }
 }
 
 export const getDatabase = () => Database.getInstance();

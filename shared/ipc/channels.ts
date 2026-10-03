@@ -1,39 +1,27 @@
 export const IPC_CHANNELS = {
-  // Add your entity channels here:
-  // ENTITY: {
-  //   FIND_ALL: 'entity:findAll',
-  //   FIND_BY_ID: 'entity:findById',
-  //   CREATE: 'entity:create',
-  //   UPDATE: 'entity:update',
-  //   DELETE: 'entity:delete',
-  // },
-
   WINDOW: {
     MINIMIZE: 'window:minimize',
     MAXIMIZE: 'window:maximize',
     CLOSE: 'window:close',
-    TOGGLE_FULLSCREEN: 'window:toggleFullscreen',
     GET_IS_MAXIMIZED: 'window:getIsMaximized',
+    GET_MAXIMIZABLE: 'window:getMaximizable',
     ON_MAXIMIZE_CHANGE: 'window:onMaximizeChange',
   },
 
-  APP: {
-    GET_VERSION: 'app:getVersion',
-    QUIT: 'app:quit',
-  },
-
-  DATABASE: {
-    EXPORT: 'database:export',
-    IMPORT: 'database:import',
+  SCANNER: {
+    BOOTSTRAP: 'scanner:bootstrap',
+    REFRESH: 'scanner:refresh',
+    PROGRESS: 'scanner:progress',
+    SET_REPORT: 'scanner:setReport',
+    SET_SCAN_ON_STARTUP: 'scanner:setScanOnStartup',
+    ADD_PATH: 'scanner:addPath',
+    UPDATE_PATH: 'scanner:updatePath',
+    SET_PATH_COLOR: 'scanner:setPathColor',
+    SET_PATH_LABEL: 'scanner:setPathLabel',
+    REMOVE_PATH: 'scanner:removePath',
+    OPEN_PATH: 'scanner:openPath',
+    OPEN_DOWNLOAD: 'scanner:openDownload',
+    GET_SYSTEM_INFO: 'scanner:getSystemInfo',
+    HARD_RESET: 'scanner:hardReset',
   },
 } as const;
-
-export type IpcChannelValue<T> = T extends Record<string, infer U> 
-  ? U extends string 
-    ? U 
-    : U extends Record<string, string> 
-      ? IpcChannelValue<U> 
-      : never 
-  : never;
-
-export type AllIpcChannels = IpcChannelValue<typeof IPC_CHANNELS>;

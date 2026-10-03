@@ -1,56 +1,126 @@
+import { RefreshCw, Settings } from 'lucide-react';
 import { TitleBar } from './components';
-import { useWindow } from './hooks';
+import { LoadingScreen } from './components/scanner/LoadingScreen';
+import { ModList } from './components/scanner/ModList';
+import { SettingsDrawer } from './components/scanner/SettingsDrawer';
+import { Button } from './components/ui/button';
+import { useState } from 'react';
+import { useScanner } from './hooks/useScanner';
+import { SystemInfoDrawer } from './components/scanner/SystemInfoDrawer';
 
 function App() {
-  const { appVersion } = useWindow();
+  const [infoOpen, setInfoOpen] = useState(false);
+  const {
+    state,
+    phase,
+    status,
+    error,
+    busy,
+    settingsOpen,
+    setSettingsOpen,
+    bootstrap,
+    refresh,
+    addPath,
+    updatePath,
+    setPathLabel,
+    setPathColor,
+    removePath,
+    setScanOnStartup,
+    setReportNexusLua,
+    hardReset,
+    openPath,
+  } = useScanner();
+
   return (
-    <div className="flex flex-col h-screen">
-      <TitleBar title='ARSENAL DESKTOP APPLICATION'/>
-      
-      <main className="flex-1 flex flex-col items-center justify-center">
-        <div className="flex flex-col items-center gap-8 max-w-lg text-center">
-          <img 
-            src="./rsnl_logo_horizontal.svg" 
-            alt="Arsenal Logo" 
-            className="w-auto opacity-90"
-            draggable={false}
-          />
-          
-          <div className="space-y-3">
-            <h1 className="text-2xl font-semibold tracking-tight bg-arsenal text-black px-4 py-2 rounded-md">
-            ARSENAL DESKTOP APPLICATION
-            </h1>
-            <p className="text-sm leading-relaxed">
-              A production-ready boilerplate for building desktop applications with 
-              Electron, React, TypeScript, and SQLite.
-            </p>
+    <div className="flex h-screen flex-col overflow-hidden bg-background">
+      <TitleBar
+        title="ARSENAL - LUA CHECKER"
+        onInfoClick={() => {
+          setSettingsOpen(false);
+          setInfoOpen(true);
+        }}
+      />
+
+      {phase === 'loading' ? (
+        <LoadingScreen status={status} />
+      ) : (
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
+          <div className="flex h-12 items-center justify-between px-3">
+            <span
+              className="min-w-0 flex-1 truncate pr-3 text-sm text-muted-foreground"
+              title={busy && status ? status : undefined}
+            >
+              {busy && status
+                ? status
+                : state
+                  ? `${state.mods.length} Lua mod${state.mods.length === 1 ? '' : 's'}`
+                  : 'Lua mods'}
+            </span>
+            <div className="flex shrink-0 items-center">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                title="Refresh"
+                disabled={busy}
+                onClick={() => void refresh()}
+              >
+                <RefreshCw className={busy ? 'size-5 animate-spin' : 'size-5'} />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                title="Settings"
+                onClick={() => {
+                  setInfoOpen(false);
+                  setSettingsOpen(true);
+                }}
+              >
+                <Settings className="size-5" />
+              </Button>
+            </div>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-2 text-xs">
-            <span className="px-2.5 py-1 bg-zinc-800/50 rounded-md border border-zinc-700/50">
-              Electron
-            </span>
-            <span className="px-2.5 py-1 bg-zinc-800/50 rounded-md border border-zinc-700/50">
-              React
-            </span>
-            <span className="px-2.5 py-1 bg-zinc-800/50 rounded-md border border-zinc-700/50">
-              TypeScript
-            </span>
-            <span className="px-2.5 py-1 bg-zinc-800/50 rounded-md border border-zinc-700/50">
-              SQLite
-            </span>
-            <span className="px-2.5 py-1 bg-zinc-800/50 rounded-md border border-zinc-700/50">
-              Tailwind CSS
-            </span>
-            <span className="px-2.5 py-1 bg-zinc-800/50 rounded-md border border-zinc-700/50">
-              shadcn/ui
-            </span>
-          </div>
-          <p className="text-sm font-light text-zinc-400 pb-1 border-b-2 border-arsenal">
-            {appVersion}
-          </p>
-        </div>
-      </main>
+          {error && (
+            <div className="flex items-center justify-between gap-3 px-3 py-2">
+              <p className="min-w-0 flex-1 truncate text-sm text-destructive" title={error}>{error}</p>
+              {!state && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => void bootstrap()}>
+                  Retry
+                </Button>
+              )}
+            </div>
+          )}
+
+          <ModList
+            mods={state?.mods ?? []}
+            paths={state?.paths ?? []}
+            onOpenFolder={(folderPath) => void openPath(folderPath)}
+            onOpenFile={(filePath) => void openPath(filePath)}
+          />
+
+          <SettingsDrawer
+            open={settingsOpen}
+            reportNexusLua={state?.reportNexusLua ?? true}
+            scanOnStartup={state?.scanOnStartup ?? false}
+            paths={state?.paths ?? []}
+            busy={busy}
+            onOpenChange={setSettingsOpen}
+            onScanOnStartupChange={(enabled) => void setScanOnStartup(enabled)}
+            onReportChange={(enabled) => void setReportNexusLua(enabled)}
+            onAdd={() => void addPath()}
+            onEdit={(id) => void updatePath(id)}
+            onLabelChange={(id, label) => void setPathLabel(id, label)}
+            onColorChange={(id, color) => void setPathColor(id, color)}
+            onRemove={(id) => void removePath(id)}
+            onRefresh={() => void refresh()}
+            onHardReset={hardReset}
+          />
+        </main>
+      )}
+
+      <SystemInfoDrawer open={infoOpen} onOpenChange={setInfoOpen} />
     </div>
   );
 }

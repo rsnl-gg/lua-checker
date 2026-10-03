@@ -10,16 +10,9 @@ export class IpcClient {
     }
 
     try {
-      const response = await window.electron.invoke<IApiResponse<TResult>>(channel, params);
-      return response;
+      return await window.electron.invoke<IApiResponse<TResult>>(channel, params);
     } catch (error) {
       return { success: false, error: `IPC Error: ${(error as Error).message}` };
-    }
-  }
-
-  protected send(channel: string, ...args: unknown[]): void {
-    if (window.electron) {
-      window.electron.send(channel, ...args);
     }
   }
 
@@ -31,13 +24,5 @@ export class IpcClient {
     return window.electron.on(channel, (_event, ...args) => {
       callback(...args);
     });
-  }
-
-  protected once(channel: string, callback: (...args: unknown[]) => void): void {
-    if (window.electron) {
-      window.electron.once(channel, (_event, ...args) => {
-        callback(...args);
-      });
-    }
   }
 }

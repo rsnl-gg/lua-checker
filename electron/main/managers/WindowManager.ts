@@ -1,4 +1,4 @@
-import { BrowserWindow, app, ipcMain } from 'electron';
+import { BrowserWindow, ipcMain, Rectangle } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { IPC_CHANNELS } from '../../../shared/ipc/channels';
@@ -27,6 +27,7 @@ interface ManagedWindow {
 export class WindowManager {
   private static instance: WindowManager;
   private windows: Map<WindowId, ManagedWindow> = new Map();
+  private cappedRestoreBounds: WeakMap<BrowserWindow, Rectangle> = new WeakMap();
   private saveStateDebounceTimer: NodeJS.Timeout | null = null;
 
   private constructor() {
@@ -50,7 +51,13 @@ export class WindowManager {
     ipcMain.handle(IPC_CHANNELS.WINDOW.MAXIMIZE, (event) => {
       const window = BrowserWindow.fromWebContents(event.sender);
       if (window) {
-        if (window.isMaximized()) {
+        const config = this.findManagedWindow(window)?.config;
+        if (config && !this.isMaximizable(config)) {
+          return { success: true };
+        }
+        if (config && this.hasSizeCap(config)) {
+          this.toggleCappedSize(window, config);
+        } else if (window.isMaximized()) {
           window.unmaximize();
         } else {
           window.maximize();
@@ -65,26 +72,15 @@ export class WindowManager {
       return { success: true };
     });
 
-    ipcMain.handle(IPC_CHANNELS.WINDOW.TOGGLE_FULLSCREEN, (event) => {
-      const window = BrowserWindow.fromWebContents(event.sender);
-      if (window) {
-        window.setFullScreen(!window.isFullScreen());
-      }
-      return { success: true };
-    });
-
     ipcMain.handle(IPC_CHANNELS.WINDOW.GET_IS_MAXIMIZED, (event) => {
       const window = BrowserWindow.fromWebContents(event.sender);
       return { success: true, data: window?.isMaximized() ?? false };
     });
 
-    ipcMain.handle(IPC_CHANNELS.APP.GET_VERSION, () => {
-      return { success: true, data: app.getVersion() };
-    });
-
-    ipcMain.handle(IPC_CHANNELS.APP.QUIT, () => {
-      app.quit();
-      return { success: true };
+    ipcMain.handle(IPC_CHANNELS.WINDOW.GET_MAXIMIZABLE, (event) => {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      const config = window ? this.findManagedWindow(window)?.config : undefined;
+      return { success: true, data: config ? this.isMaximizable(config) : true };
     });
   }
 
@@ -145,6 +141,82 @@ export class WindowManager {
     }
   }
 
+  private findManagedWindow(window: BrowserWindow): ManagedWindow | undefined {
+    for (const managed of this.windows.values()) {
+      if (managed.window === window) {
+        return managed;
+      }
+    }
+    return undefined;
+  }
+
+  private hasSizeCap(config: IWindowConfig): boolean {
+    return config.maxWidth !== undefined || config.maxHeight !== undefined;
+  }
+
+  private isMaximizable(config: IWindowConfig): boolean {
+    return config.maximizable !== false;
+  }
+
+  private clampDimension(value: number, min?: number, max?: number): number {
+    let size = value;
+    if (min !== undefined) {
+      size = Math.max(size, min);
+    }
+    if (max !== undefined) {
+      size = Math.min(size, max);
+    }
+    return size;
+  }
+
+  private applySizeLimits(window: BrowserWindow, config: IWindowConfig): void {
+    if (config.minWidth !== undefined && config.minHeight !== undefined) {
+      window.setMinimumSize(config.minWidth, config.minHeight);
+    }
+
+    if (config.maxWidth !== undefined && config.maxHeight !== undefined) {
+      window.setMaximumSize(config.maxWidth, config.maxHeight);
+    }
+  }
+
+  private toggleCappedSize(window: BrowserWindow, config: IWindowConfig): void {
+    if (window.isMaximized()) {
+      window.unmaximize();
+      return;
+    }
+
+    const bounds = window.getBounds();
+    const maxWidth = config.maxWidth ?? bounds.width;
+    const maxHeight = config.maxHeight ?? bounds.height;
+    const atCap = bounds.width >= maxWidth - 1 && bounds.height >= maxHeight - 1;
+    const restore = this.cappedRestoreBounds.get(window);
+
+    if (atCap && restore) {
+      window.setBounds({
+        x: bounds.x,
+        y: bounds.y,
+        width: this.clampDimension(restore.width, config.minWidth, config.maxWidth),
+        height: this.clampDimension(restore.height, config.minHeight, config.maxHeight),
+      });
+      this.cappedRestoreBounds.delete(window);
+      this.notifyMaximizeChange(window, false);
+      return;
+    }
+
+    if (atCap) {
+      return;
+    }
+
+    this.cappedRestoreBounds.set(window, bounds);
+    window.setBounds({
+      x: bounds.x,
+      y: bounds.y,
+      width: maxWidth,
+      height: maxHeight,
+    });
+    this.notifyMaximizeChange(window, true);
+  }
+
   createMainWindow(config?: Partial<IWindowConfig>): BrowserWindow {
     const stateHelper = getWindowStateHelper();
     const savedState = stateHelper.getWindowOptions();
@@ -156,11 +228,25 @@ export class WindowManager {
       minHeight: 600,
       title: 'Arsenal',
       resizable: true,
+      maximizable: true,
       frame: false,
       backgroundColor: '#141414',
     };
 
-    const mergedConfig = { ...defaultConfig, ...config };
+    const mergedConfig: IWindowConfig = {
+      ...defaultConfig,
+      ...config,
+      width: this.clampDimension(
+        config?.width ?? savedState.width,
+        config?.minWidth ?? defaultConfig.minWidth,
+        config?.maxWidth,
+      ),
+      height: this.clampDimension(
+        config?.height ?? savedState.height,
+        config?.minHeight ?? defaultConfig.minHeight,
+        config?.maxHeight,
+      ),
+    };
 
     const mainWindow = new BrowserWindow({
       x: savedState.x,
@@ -169,8 +255,11 @@ export class WindowManager {
       height: mergedConfig.height,
       minWidth: mergedConfig.minWidth,
       minHeight: mergedConfig.minHeight,
+      maxWidth: mergedConfig.maxWidth,
+      maxHeight: mergedConfig.maxHeight,
       title: mergedConfig.title,
       resizable: mergedConfig.resizable,
+      maximizable: this.isMaximizable(mergedConfig),
       frame: mergedConfig.frame,
       backgroundColor: mergedConfig.backgroundColor,
       icon: path.join(VITE_PUBLIC, 'rsnl_logo.png'),
@@ -183,18 +272,26 @@ export class WindowManager {
       },
     });
 
+    this.applySizeLimits(mainWindow, mergedConfig);
     this.setupWindowStateTracking(mainWindow);
 
     mainWindow.once('ready-to-show', () => {
-      if (stateHelper.shouldMaximize()) {
+      this.applySizeLimits(mainWindow, mergedConfig);
+
+      const canRestoreMaximized = this.isMaximizable(mergedConfig) && !this.hasSizeCap(mergedConfig);
+      if (stateHelper.shouldMaximize() && canRestoreMaximized) {
         mainWindow.maximize();
+      } else if (!canRestoreMaximized && stateHelper.shouldMaximize()) {
+        stateHelper.updateMaximized(false);
+        stateHelper.save();
       }
+
       mainWindow.show();
     });
 
     if (VITE_DEV_SERVER_URL) {
       mainWindow.loadURL(VITE_DEV_SERVER_URL);
-      mainWindow.webContents.openDevTools();
+      mainWindow.webContents.openDevTools({ mode: 'detach' });
     } else {
       mainWindow.loadFile(path.join(RENDERER_DIST, 'index.html'));
     }
@@ -220,93 +317,12 @@ export class WindowManager {
     return mainWindow;
   }
 
-  createWindow(id: WindowId, config: IWindowConfig, route?: string): BrowserWindow {
-    if (this.windows.has(id)) {
-      const existing = this.windows.get(id)!;
-      existing.window.focus();
-      return existing.window;
-    }
-
-    const window = new BrowserWindow({
-      width: config.width ?? 800,
-      height: config.height ?? 600,
-      minWidth: config.minWidth,
-      minHeight: config.minHeight,
-      title: config.title,
-      resizable: config.resizable ?? true,
-      frame: config.frame ?? true,
-      parent: this.getMainWindow() ?? undefined,
-      webPreferences: {
-        preload: path.join(MAIN_DIST, 'preload.mjs'),
-        nodeIntegration: false,
-        contextIsolation: true,
-        devTools: !!VITE_DEV_SERVER_URL,
-      },
-    });
-
-    if (VITE_DEV_SERVER_URL) {
-      const url = route 
-        ? `${VITE_DEV_SERVER_URL}#${route}` 
-        : VITE_DEV_SERVER_URL;
-      window.loadURL(url);
-    } else {
-      window.loadFile(path.join(RENDERER_DIST, 'index.html'), {
-        hash: route,
-      });
-    }
-
-    this.windows.set(id, { id, window, config });
-
-    window.on('closed', () => {
-      this.windows.delete(id);
-    });
-
-    return window;
-  }
-
   getWindow(id: WindowId): BrowserWindow | null {
     return this.windows.get(id)?.window ?? null;
   }
 
   getMainWindow(): BrowserWindow | null {
     return this.getWindow('main');
-  }
-
-  getAllWindows(): BrowserWindow[] {
-    return Array.from(this.windows.values()).map((w) => w.window);
-  }
-
-  closeWindow(id: WindowId): boolean {
-    const managed = this.windows.get(id);
-    if (managed) {
-      managed.window.close();
-      return true;
-    }
-    return false;
-  }
-
-  closeAllWindows(): void {
-    for (const managed of this.windows.values()) {
-      managed.window.close();
-    }
-    this.windows.clear();
-  }
-
-  sendToWindow(id: WindowId, channel: string, ...args: unknown[]): boolean {
-    const window = this.getWindow(id);
-    if (window && !window.isDestroyed()) {
-      window.webContents.send(channel, ...args);
-      return true;
-    }
-    return false;
-  }
-
-  broadcast(channel: string, ...args: unknown[]): void {
-    for (const managed of this.windows.values()) {
-      if (!managed.window.isDestroyed()) {
-        managed.window.webContents.send(channel, ...args);
-      }
-    }
   }
 }
 

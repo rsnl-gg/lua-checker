@@ -15,26 +15,18 @@ class WindowIpcService extends IpcClient {
     return this.invoke<void>(IPC_CHANNELS.WINDOW.CLOSE);
   }
 
-  async toggleFullscreen(): Promise<IApiResponse<void>> {
-    return this.invoke<void>(IPC_CHANNELS.WINDOW.TOGGLE_FULLSCREEN);
-  }
-
   async getIsMaximized(): Promise<IApiResponse<boolean>> {
     return this.invoke<boolean>(IPC_CHANNELS.WINDOW.GET_IS_MAXIMIZED);
+  }
+
+  async getMaximizable(): Promise<IApiResponse<boolean>> {
+    return this.invoke<boolean>(IPC_CHANNELS.WINDOW.GET_MAXIMIZABLE);
   }
 
   onMaximizeChange(callback: (isMaximized: boolean) => void): () => void {
     return window.electron.on(IPC_CHANNELS.WINDOW.ON_MAXIMIZE_CHANGE, (_event, isMaximized) => {
       callback(isMaximized as boolean);
     });
-  }
-
-  async getAppVersion(): Promise<IApiResponse<string>> {
-    return this.invoke<string>(IPC_CHANNELS.APP.GET_VERSION);
-  }
-
-  async quitApp(): Promise<IApiResponse<void>> {
-    return this.invoke<void>(IPC_CHANNELS.APP.QUIT);
   }
 }
 

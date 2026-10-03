@@ -5,15 +5,13 @@ interface UseWindowReturn {
   minimize: () => Promise<void>;
   maximize: () => Promise<void>;
   close: () => Promise<void>;
-  toggleFullscreen: () => Promise<void>;
   isMaximized: boolean;
-  appVersion: string | null;
-  quit: () => Promise<void>;
+  maximizable: boolean | null;
 }
 
 export function useWindow(): UseWindowReturn {
-  const [appVersion, setAppVersion] = useState<string | null>(null);
   const [isMaximized, setIsMaximized] = useState<boolean>(false);
+  const [maximizable, setMaximizable] = useState<boolean | null>(null);
 
   const minimize = useCallback(async () => {
     await windowService.minimize();
@@ -27,18 +25,16 @@ export function useWindow(): UseWindowReturn {
     await windowService.close();
   }, []);
 
-  const toggleFullscreen = useCallback(async () => {
-    await windowService.toggleFullscreen();
-  }, []);
-
-  const quit = useCallback(async () => {
-    await windowService.quitApp();
-  }, []);
-
   useEffect(() => {
     windowService.getIsMaximized().then((response) => {
       if (response.success && response.data !== undefined) {
         setIsMaximized(response.data);
+      }
+    });
+
+    windowService.getMaximizable().then((response) => {
+      if (response.success && response.data !== undefined) {
+        setMaximizable(response.data);
       }
     });
 
@@ -51,22 +47,11 @@ export function useWindow(): UseWindowReturn {
     };
   }, []);
 
-  // Get app version
-  useEffect(() => {
-    windowService.getAppVersion().then((response) => {
-      if (response.success && response.data) {
-        setAppVersion(response.data);
-      }
-    });
-  }, []);
-
   return {
     minimize,
     maximize,
     close,
-    toggleFullscreen,
     isMaximized,
-    appVersion,
-    quit,
+    maximizable,
   };
 }

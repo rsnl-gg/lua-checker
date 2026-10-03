@@ -1,7 +1,6 @@
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import { BaseHelper } from './BaseHelper';
 
 export enum LogLevel {
   DEBUG = 'DEBUG',
@@ -14,7 +13,6 @@ export enum LogLevel {
 export enum LogSource {
   CONTROLLER = 'Controller',
   SERVICE = 'Service',
-  REPOSITORY = 'Repository',
   MANAGER = 'Manager',
   HELPER = 'Helper',
   DATABASE = 'Database',
@@ -31,7 +29,7 @@ interface LogEntry {
   data?: unknown;
 }
 
-class LoggerHelper extends BaseHelper {
+class LoggerHelper {
   private static instance: LoggerHelper;
   private logsDir: string;
   private currentLogFile: string;
@@ -58,7 +56,6 @@ class LoggerHelper extends BaseHelper {
   private readonly resetColor = '\x1b[0m';
 
   private constructor() {
-    super('LoggerHelper');
     this.logsDir = path.join(app.getPath('userData'), 'logs');
     this.ensureLogsDirectory();
     this.currentLogFile = this.getLogFileName();
@@ -171,10 +168,6 @@ class LoggerHelper extends BaseHelper {
     this.writeToFile(this.formatLogEntry(entry));
   }
 
-  public debug(source: LogSource, context: string, message: string, data?: unknown): void {
-    this.log(LogLevel.DEBUG, source, context, message, data);
-  }
-
   public info(source: LogSource, context: string, message: string, data?: unknown): void {
     this.log(LogLevel.INFO, source, context, message, data);
   }
@@ -189,69 +182,6 @@ class LoggerHelper extends BaseHelper {
 
   public fatal(source: LogSource, context: string, message: string, data?: unknown): void {
     this.log(LogLevel.FATAL, source, context, message, data);
-  }
-
-  // Configuration methods
-  public setMinLevel(level: LogLevel): void {
-    this.minLevel = level;
-  }
-
-  public enableConsoleLogging(enable: boolean): void {
-    this.logToConsole = enable;
-  }
-
-  public enableFileLogging(enable: boolean): void {
-    this.logToFile = enable;
-  }
-
-  public getLogsDirectory(): string {
-    return this.logsDir;
-  }
-
-  public async getLogFiles(): Promise<string[]> {
-    try {
-      const files = fs.readdirSync(this.logsDir);
-      return files.filter(f => f.endsWith('.log')).sort().reverse();
-    } catch {
-      return [];
-    }
-  }
-
-  public async readLogFile(filename: string): Promise<string | null> {
-    try {
-      const filePath = path.join(this.logsDir, filename);
-      if (!fs.existsSync(filePath)) return null;
-      return fs.readFileSync(filePath, 'utf8');
-    } catch {
-      return null;
-    }
-  }
-
-  public async clearOldLogs(daysToKeep: number = 7): Promise<number> {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
-    
-    let deletedCount = 0;
-    
-    try {
-      const files = fs.readdirSync(this.logsDir);
-      
-      for (const file of files) {
-        if (!file.endsWith('.log')) continue;
-        
-        const filePath = path.join(this.logsDir, file);
-        const stats = fs.statSync(filePath);
-        
-        if (stats.mtime < cutoffDate) {
-          fs.unlinkSync(filePath);
-          deletedCount++;
-        }
-      }
-    } catch (err) {
-      this.error(LogSource.HELPER, 'LoggerHelper', 'Failed to clear old logs', err);
-    }
-    
-    return deletedCount;
   }
 }
 

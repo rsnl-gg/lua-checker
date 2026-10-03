@@ -24,6 +24,7 @@ const DEFAULT_STATE: IWindowState = {
 export class WindowStateHelper {
   private static instance: WindowStateHelper;
   private readonly filePath: string;
+  private persistenceEnabled = true;
   private state: IWindowState;
 
   private constructor() {
@@ -177,7 +178,14 @@ export class WindowStateHelper {
     return xOverlap * yOverlap;
   }
 
+  public disablePersistence(): void {
+    this.persistenceEnabled = false;
+  }
+
   public save(): void {
+    if (!this.persistenceEnabled) {
+      return;
+    }
     try {
       const content = this.toIni(this.state);
       fs.writeFileSync(this.filePath, content, 'utf-8');
