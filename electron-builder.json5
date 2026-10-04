@@ -3,6 +3,8 @@
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "lua-checker.rsnl.gg",
   "productName": "Arsenal Lua Checker",
+  "copyright": "Copyright © 2026 Andrea Marucci",
+  "icon": "public/rsnl_logo.png",
   "executableName": "arsenal-lua-checker",
   "artifactName": "arsenal-lua-checker-${version}.${ext}",
   "asar": true,

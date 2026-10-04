@@ -2,6 +2,9 @@
   "name": "arsenal-lua-checker",
   "private": true,
   "version": "2026.10.1",
+  "description": "Desktop app that scans Helldivers 2 mod folders and lists mods whose patch files contain Lua scripts.",
+  "author": "Andrea Marucci",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
